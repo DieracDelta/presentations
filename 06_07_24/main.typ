@@ -43,42 +43,63 @@
   - RL Programs $subset$ Rust Programs
   - RL lifetime reasoning must be at least as strict as Borrow Checker
   - E.g. Okay to model borrow checking semantics s.t. stricter than the borrow checker
-    - Can ignore TPB
-  // - Specification too strict: #emoji.checkmark
-  // - But also: #emoji.turtle
-
+    - Can ignore Two Phase Borrow
+    - Only use `*mut` pointer
 ]
 
-#slide(title: "Existing Work")[
-  #set text(font: font, weight: wt, size: 15pt)
-  #table(
-    columns: 6,
-    [*Work*], [*Supports NLL*], [*Supports TPB*], [*Is Source Level*], [*Strictness wrt BC*], [*Models Unsafe*],
-    [RustBelt], [Mostly], [No], [No], [Not Strict Enough], [Yes],
-    [Oxide], [No], [No], [Yes], [Too strict],  [No],
-    [KRust], [No], [No], [Yes], [Too strict], [No],
-    [Stack Borrows], [Yes], [Yes], [Yes], [Too Strict], [Yes],
-    [Tree Borrows], [Yes], [Yes], [Yes], [Slightly Too Strict], [Yes],
-  )
-]
+// #slide(title: "Existing Work")[
+//   #set text(font: font, weight: wt, size: 15pt)
+//   #table(
+//     columns: 6,
+//     [*Work*], [*Supports NLL*], [*Supports TPB*], [*Is Source Level*], [*Strictness wrt BC*], [*Models Unsafe*],
+//     [RustBelt], [Mostly], [No], [No], [Not Strict Enough], [Yes],
+//     [Oxide], [No], [No], [Yes], [Too strict],  [No],
+//     [KRust], [No], [No], [Yes], [Too strict], [No],
+//     [Stack Borrows], [Yes], [Yes], [Yes], [Too Strict], [Yes],
+//     [Tree Borrows], [Yes], [Yes], [Yes], [Slightly Too Strict], [Yes],
+//   )
+// ]
+
+// disclaimer: no longer relevant to understand, really
+#new-section-slide([Two Phase Borrow])
 
 #slide(title: "Two-phase borrow (Case 1)")[
 
   ```rust
-    // pub fn push(&mut self, value: T)
-    fn main() {
-    }
+    let mut v = Vec::new();
+    v.push(v.len());
   ```
-  (Credit: Rustc dev)
-  // https://rustc-dev-guide.rust-lang.org/borrow_check/two_phase_borrows.html
 ]
 
-#slide(title: "Two-phase borrow (Case 2)")[
-
-  ```rust
-  ```
-  (Credit: Rustc dev)
-  // https://rustc-dev-guide.rust-lang.org/borrow_check/two_phase_borrows.html
+#slide(title: "Two-phase borrow (Case 1)")[
+  #set text(font: font, weight: wt, size: 15pt)
+  #side-by-side_dup[
+    Source Code:\
+    #codeblock(
+      ```rust
+        let mut v = Vec::new();
+        // append length of vector to vector
+        v.push(v.len());
+      ```
+    )
+  ][
+    Source Code with implicit behavior:
+    #codeblock(
+      ```rust
+        let mut v = Vec::new();
+        // no pointers
+        let temp1 = &mut v;
+        //temp1 treated as shared pointer to v. "Reserved" phase
+        let temp3 = &v;
+        // temp3 treated as shared pointer
+        let temp2 = Vec::len(temp3);
+        drop(temp3);
+        // temp3 becomes mutable pointer
+        Vec::push(temp1, temp2);
+      ```
+    )
+  ]
+  // TODO MIR
 ]
 
 #new-section-slide([Tree Borrows])
