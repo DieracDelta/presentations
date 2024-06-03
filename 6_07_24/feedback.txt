@@ -1,0 +1,6 @@
+1) nobody understood the comparison chart. Need to make that more explicit/detailed
+2) better TPB explanation. This means "accepted by BC but *not* by our borrow." I guess we can say RustLight models more strict than BC. That is, it models LESS cases but all cases modeled are accepted by Rust. "less strict than rustc" is unaccepetable, more strict is not.
+3) answer the question of "do we need to be as strict as the borrow checker?"
+   should probably go more deeply into what *is* and what *is not* supported
+   more examples of what is and is not supported by the borrow checker. Re-use from tree borrows
+4) ALWAYS include "problem I am trying to solve"
