@@ -1,35 +1,10 @@
 #import "polylux/polylux.typ": *
 #import themes.metropolis: *
+#import "common.typ": *
 
 #show: metropolis-theme.with(
   footer: [#logic.logical-slide.display() / #utils.last-slide-number]
 )
-
-#let codeblock(body, caption: none, lineNum:true) = {
-    if lineNum {
-      show raw.where(block:true): it =>{
-        set par(justify: false)
-        block(fill: luma(240),inset: 0.3em,radius: 0.3em,
-          // grid size: N*2
-          grid(
-            columns: 2,
-            align: left+top,
-            column-gutter: 0.5em,
-            stroke: (x,y) => if x==0 {( right: (paint:gray, dash:"densely-dashed") )},
-            inset: 0.3em,
-            ..it.lines.map((line) => (str(line.number), line.body)).flatten()
-          )
-        )
-      }
-      figure(body, caption: caption, kind: "code", supplement: "Code")
-    }
-    else{
-      figure(body, caption: caption, kind: "code", supplement: "Code")
-    }
-  }
-
-#let font = "Fira Code Regular Nerd Font Complete"
-#let wt = "light"
 
 #set text(font: font, weight: wt, size: 25pt)
 #show math.equation: set text(font: "Fira Math")
@@ -45,30 +20,34 @@
   #metropolis-outline
 ]
 
-#new-section-slide([High Level Idea])
+#new-section-slide([High Level Idea (Review)])
 
-#slide(title: "Pitch")[
+#slide(title: "Pitch (Review)" )[
   - Compile C to a #alert[unsafe subset] of Rust (“RustLight”)
   #uncover((2, 3, 4))[- Run RustLight through the Rust compiler]
   #uncover((3, 4))[- RustLight operational semantics serve as a "Rust Spec"]
   #uncover(4)[- Improve on C2Rust]
 ]
 
-#new-section-slide([Translation Intuition (C2Rust)])
+#new-section-slide([Couple of Unanswered questions])
 
-#slide(title: "Translation Intuition")[
-  - Run through examples from C2Rust
+#slide(title: "Modules")[
+  TODO
 ]
 
-#let side-by-side_dup(columns: none, gutter: 1em, ..bodies) = {
-  let bodies = bodies.pos()
-  let columns = if columns ==  none { (1fr,) * bodies.len() } else { columns }
-  if columns.len() != bodies.len() {
-    panic("number of columns must match number of content arguments")
-  }
+#slide(title: "Aliasing")[
 
-  grid(columns: columns, gutter: gutter, align: top, ..bodies)
-}
+]
+
+#slide(title: "Borrow Checking Strength")[
+  - RL Programs $subset$ Rust Programs
+  - RL lifetime reasoning must be at least as strict as Borrow Checker
+  - E.g. Okay to model borrow checking semantics s.t. stricter than the borrow checker
+    - Can ignore TPB
+  // - Specification too strict: #emoji.checkmark
+  // - But also: #emoji.turtle
+
+]
 
 #slide(title: "Existing Work")[
   #set text(font: font, weight: wt, size: 15pt)
@@ -102,6 +81,7 @@
   // https://rustc-dev-guide.rust-lang.org/borrow_check/two_phase_borrows.html
 ]
 
+#new-section-slide([Tree Borrows])
 
 #slide(title: "Tree Borrows")[
   Each pointer is a state machine that is either:
