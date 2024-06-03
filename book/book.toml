@@ -1,0 +1,13 @@
+[book]
+authors = ["Andreas Kröpelin"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Polylux"
+
+[output.html]
+site-url = "/polylux/book/"
+
+[output.html.code.hidelines]
+typ = "~"
+
