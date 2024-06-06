@@ -54,8 +54,18 @@
   ```
 ]
 
+#slide(title: "Refresher: Vardiadics in C")[
+  - `va_list` - informally pointer to the next argument
+    - `typedef __builtin_va_list va_list;`
+    - `typedef __va_list_tag __builtin_va_list[1]`
+  - `va_start(va_list l, last_arg)` - `l` initialized with first arg
+  - `va_end(va_list l)` - deallocates l
+  - `va_arg(va_list l, t)` - returns next argument
+  - `va_copy(va_list l, va_list l')` - copies `l` into `l'`
+]
+
 #slide(title: "Using Variadics")[
-  #set text(font: font, weight: wt, size: 15pt)
+  #set text(font: font, weight: wt, size: 18pt)
   #side-by-side_dup[
     #codeblock(
       ```C
@@ -67,16 +77,21 @@
       ```
     )
   ][
-    #set text(font: font, weight: wt, size: 10pt)
+    #set text(font: font, weight: wt, size: 16pt)
     #codeblock(
       ```rust
       extern "C" {
-          fn printf(_: *const libc::c_char, _: ...) -> libc::c_int;
+          fn printf(
+              _: *const libc::c_char,
+              _: ...
+          ) -> libc::c_int;
       }
       #[no_mangle]
       pub unsafe extern "C" fn example() {
           printf(
-            b"Hello world %d\0" as *const u8 as *const libc::c_char,
+            b"Hello world %d\0"
+              as *const u8
+              as *const libc::c_char,
             5 as libc::c_int
           );
       }
@@ -85,15 +100,31 @@
   ]
 ]
 
-#slide(title: "Variadics")[
-  - Stable Rust can call variadics and link to them
-  - Stable Rust *cannot* generate variadic functions
-  - Nightly Rust comes with `#![feature(c_variadic)]`
-  - Variadics compliant with x86_64-linux ABI
-  - `#![feature(c_variadic)]` is used to enable `VaList`
+#slide(title: "Variadics - Map")[
+  #set text(font: font, weight: wt, size: 18pt)
+  #table(
+    columns: 2,
+    [C], [Rust],
+    [`__va_list_tag[1]`], [`std::ffi::VaList<'a, 'f> where 'f : 'a`],
+    [`__va_list_tag*`], [`std::ffi::VaListImpl<'f>`],
+    [`va_start(l, last_arg)`], [`l.clone()`],
+    [`va_arg(l, t)`], [``],
+    [`va_end`], [`drop`],
+    [`va_copy`], [`clone`],
+  )
+
+
 ]
 
-#slide(title: "Variadics Rust")[
+#slide(title: "Variadics - Rust Caveats")[
+  - Stable Rust can call variadics and link to them
+  - Stable Rust *cannot* generate variadic functions
+  - Nightly Rust (described above) come from `#![feature(c_variadic)]`
+  - Variadics compliant with x86_64-linux ABI, not so stable with other ABIs
+  - nightly feature `#![feature(c_variadic)]`
+]
+
+#slide(title: "Variadics - Interface ")[
   #set text(font: font, weight: wt, size: 15pt)
   #codeblock(
     ```rust
@@ -116,6 +147,82 @@
 
     )
 
+  ]
+
+#slide(title: "Variadics - Example - C")[
+  #set text(font: font, weight: wt, size: 14pt)
+  #codeblock(
+    ```c
+    #include <stdio.h>
+    #include <stdarg.h>
+
+    int sum(int count, ...);
+
+    int sum(int count, ...) {
+        int total = 0;
+        va_list args;
+        va_start(args, count);
+
+        for (int i = 0; i < count; i++) {
+            total += va_arg(args, int);
+        }
+
+        va_end(args);
+        return total;
+    }
+    ```
+    )
+  ]
+
+#slide(title: "Variadics - Example - Rust")[
+  #set text(font: font, weight: wt, size: 14pt)
+  #side-by-side_dup[
+    #codeblock(
+    ```c
+      #include <stdio.h>
+      #include <stdarg.h>
+
+      int sum(int count, ...);
+
+      int sum(int count, ...) {
+          int total = 0;
+          va_list args;
+          va_start(args, count);
+
+          for (int i = 0; i < count; i++) {
+              total += va_arg(args, int);
+          }
+
+          va_end(args);
+          return total;
+      }
+    ```
+    )
+  ][
+    #codeblock(
+      ```rust
+      #[no_mangle]
+      pub unsafe extern "C" fn sum(
+        mut count: libc::c_int,
+        mut args: ...
+      ) -> libc::c_int {
+          let mut total: libc::c_int = 0
+            as libc::c_int;
+          let mut args_0: ::core::ffi::VaListImpl;
+          args_0 = args.clone();
+          let mut i: libc::c_int = 0
+            as libc::c_int;
+          while i < count {
+              total += args_0.arg::<libc::c_int>();
+              i += 1;
+              i;
+          }
+          return total;
+      }
+      ```
+      )
+
+  ]
   ]
 
 #slide(title: "Extern types")[
