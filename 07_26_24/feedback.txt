@@ -1,0 +1,3 @@
+- define a memory model for rust friendly C. Could include oncecell, interior mutability, etc
+  - strawman as well?
+- Specific problem you are trying to solve (birng slides)
