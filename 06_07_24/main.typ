@@ -13,7 +13,7 @@
 
 #title-slide(
   author: [Justin Restivo],
-  title: "Slides - 5/23",
+  title: "Slides - 6/7",
 )
 
 #slide(title: "Table of contents")[
@@ -29,40 +29,24 @@
   - Improve on C2Rust
 ]
 
-#new-section-slide([Building bigger projects])
+#new-section-slide([Variadics])
 
-#slide(title: "Compilation Information")[
-  - In c2rust bear/ninja/intercept-build used to determine locations of includes
-  - Python used to connect files
-]
-
-#slide(title: "Headers")[
-  #set text(font: font, weight: wt, size: 20pt)
-  - General structure of file mirrors C
-  - Ugly
-  ```rust
-  pub mod my_header {
-    extern "C" {
-      pub type ..;
-      pub fn ..;
-    }
-  }
-  // more headers
-
-  // code if C file
-
-  ```
-]
-
-#slide(title: "Refresher: Vardiadics in C")[
-  - `va_list` - informally pointer to the next argument
+#slide(title: "Refresher: Variadics in C")[
+  - `printf(...)`  - Syntax
+  - `va_list` - informally pointer to info about next argument
     - `typedef __builtin_va_list va_list;`
     - `typedef __va_list_tag __builtin_va_list[1]`
-  - `va_start(va_list l, last_arg)` - `l` initialized with first arg
-  - `va_end(va_list l)` - deallocates l
-  - `va_arg(va_list l, t)` - returns next argument
+  - `va_start(va_list l, last_arg)` - `l` initialized with info about first arg
+  - `va_end(va_list l)` - deallocates l? Spec doesn't say.
+  - `t va_arg(va_list l, t)` - returns next argument
   - `va_copy(va_list l, va_list l')` - copies `l` into `l'`
 ]
+
+#slide(title: "va_list c99 spec")[
+  #image("./spec.png")
+
+]
+// TODO maybe put spec in
 
 #slide(title: "Using Variadics")[
   #set text(font: font, weight: wt, size: 18pt)
@@ -99,61 +83,10 @@
     )
   ]
 ]
-
-#slide(title: "Variadics - Map")[
-  #set text(font: font, weight: wt, size: 18pt)
-  #table(
-    columns: 2,
-    [C], [Rust],
-    [`__va_list_tag[1]`], [`std::ffi::VaList<'a, 'f> where 'f : 'a`],
-    [`__va_list_tag*`], [`std::ffi::VaListImpl<'f>`],
-    [`va_start(l, last_arg)`], [`l.clone()`],
-    [`va_arg(l, t)`], [``],
-    [`va_end`], [`drop`],
-    [`va_copy`], [`clone`],
-  )
-
-
-]
-
-#slide(title: "Variadics - Rust Caveats")[
-  - Stable Rust can call variadics and link to them
-  - Stable Rust *cannot* generate variadic functions
-  - Nightly Rust (described above) come from `#![feature(c_variadic)]`
-  - Variadics compliant with x86_64-linux ABI, not so stable with other ABIs
-  - nightly feature `#![feature(c_variadic)]`
-]
-
-#slide(title: "Variadics - Interface ")[
-  #set text(font: font, weight: wt, size: 15pt)
-  #codeblock(
-    ```rust
-      /// The argument list of a C-compatible variadic function, corresponding to the
-      /// underlying C `va_list`. Opaque.
-      pub struct VaList<'a> { /* fields omitted */ }
-
-      // Note: the lifetime on VaList is invariant
-      impl<'a> VaList<'a> {
-          /// Extract the next argument from the argument list. T must have a type
-          /// usable in an FFI interface.
-          pub unsafe fn arg<T>(&mut self) -> T;
-
-          /// Copy the argument list. Destroys the copy after the closure returns.
-          pub fn copy<'ret, F, T>(&self, F) -> T
-          where
-              F: for<'copy> FnOnce(VaList<'copy>) -> T, T: 'ret;
-      }
-    ```
-
-    )
-
-  ]
-
 #slide(title: "Variadics - Example - C")[
   #set text(font: font, weight: wt, size: 14pt)
   #codeblock(
     ```c
-    #include <stdio.h>
     #include <stdarg.h>
 
     int sum(int count, ...);
@@ -179,7 +112,6 @@
   #side-by-side_dup[
     #codeblock(
     ```c
-      #include <stdio.h>
       #include <stdarg.h>
 
       int sum(int count, ...);
@@ -225,10 +157,68 @@
   ]
   ]
 
-#slide(title: "Extern types")[
-  #set text(font: font, weight: wt, size: 20.5pt)
+#slide(title: "Variadics - `/VaList(Impl)?/`")[
+  - `'a` : how long `VaList` lives
+  - `'f` : how long underlying `VaListImpl` lives. Always entire function
   #codeblock(
   ```rust
+    pub struct VaList<'a, 'f: 'a> {
+        inner: &'a mut VaListImpl<'f>,
+    }
+  ```
+)
+]
+
+#slide(title: "Variadics - Map")[
+  #set text(font: font, weight: wt, size: 18pt)
+  #table(
+    columns: 2,
+    [C], [Rust],
+    [`__va_list_tag[1]`], [`std::ffi::VaList<'a, 'f> where 'f : 'a`],
+    [`__va_list_tag*`], [`std::ffi::VaListImpl<'f>`],
+    [`va_start(l, last_arg)`], [`l.clone()`],
+    [`va_arg(l, t)`], [`l.arg::<T: VaArgSafe>()`],
+    [`va_copy(a, b)`], [`let b = a.clone()`],
+    [`va_end()`], [`Drop::drop()`],
+  )
+
+
+]
+
+
+#slide(title: "Variadics - Lifetimes prevent Misuse")[
+  #set text(font: font, weight: wt, size: 20pt)
+  #codeblock(
+  ```rust
+    pub unsafe extern fn foo<'a>(mut ap: ...) -> VaListImpl<'a> {
+        // `VaListImpl` would escape
+        ap
+    }
+
+  ```
+    // /// misuse
+    // fn bar<'a, 'f, 'g: 'f>(ap: &mut VaList<'a, 'f>, aq: VaList<'a, 'g>) {
+    //     // Incompatible types
+    //     *ap = aq;
+    // }
+  )
+]
+
+#slide(title: "Variadics - Rust Caveats")[
+  - Stable Rust can call variadics and link to them
+  - Stable Rust *cannot* generate variadic functions
+  - Nightly Rust (described above) come from `#![feature(c_variadic)]`
+  - Variadics compliant with x86_64-linux ABI, not so stable with other ABIs
+  - nightly feature `#![feature(c_variadic)]`
+]
+
+#new-section-slide([Forward Declaration])
+
+#slide(title: "Forward Declarations - C")[
+  #set text(font: font, weight: wt, size: 18pt)
+  #codeblock(
+  ```rust
+    // linker resolves
     typedef struct ExampleS ExampleS;
     typedef union ExampleU ExampleU;
     struct ExampleS* createExample(ExampleU* ex);
@@ -244,7 +234,7 @@
   ```
   )
 ]
-#slide(title: "Extern types")[
+#slide(title: "Forward Declarations - Rust")[
   #set text(font: font, weight: wt, size: 15pt)
   #codeblock(
   ```rust
@@ -268,84 +258,142 @@
   )
 ]
 
-#slide(title: "Extern types")[
+#slide(title: "Forward Declaration - Extern Type")[
   - Rust guarantees that all types have a way to obtain size.
-  - Static types can determine this at compile time (e.g. sizeof)
+  - Static types can determine this at compile time (e.g. size_of)
   - Dynamically Sized Types (DST) carry size metadata at runtime (size_of_val)
   - *Not stabilized*
 ]
 
-
-// #slide(title: "Aliasing")[
-//
-// ]
+#new-section-slide([Borrow Checking])
 
 #slide(title: "Borrow Checking Modeling and Thoughts")[
-  #set text(font: font, weight: wt, size: 12pt)
+  #set text(font: font, weight: wt, size: 17pt)
   - RL Programs $subset$ Rust Programs
-  - RL lifetime reasoning must be at least as strict as Borrow Checker
-  - "strict" meaning that
-    1) only model *mut and *const pointers
-    2) only model *some* lifetime cases
+  - All RL programs must be accepted by borrow checker.
+  - Not all accepted by borrow checker programs need to be modeled by RL.
   - Model borrow checking semantics s.t. stricter than the borrow checker
-    - Can ignore special (weird) cases like Two Phase Borrow
+    - Can ignore complicated edge cases like Two Phase Borrow
     - Can reduce scope significantly
       - Only model `*const` `*mut`
-      - Don't support implicit borrows
-  - Open question: is this enough? Some sort of proof that this *actually* maps onto rust semantics (for which a spec does not exist)
-  - Longer term, would need to expand on this to support other pointer types etc
+      - By definition drop edge cases
+  - Open question: is this enough? How to show this *actually* maps onto rust semantics (for which a spec does not exist)
+  - Longer term, would need to expand on this to support other pointer types. How to model `&`?
 ]
 
 // disclaimer: no longer relevant to understand, really
 #new-section-slide([Two Phase Borrow])
 
-#slide(title: "Two-phase borrow (Case 1)")[
-
-  ```rust
-    let mut v = Vec::new();
-    v.push(v.len());
-  ```
+#slide(title: "Two-phase Borrow Intuition")[
+  - `&mut` when borrowed implicitly #emph("Reserved") until used to mutate, at which point becomes #emph("Active")
+  - While #emph("Reserved"), is treated as a shared (immutable) pointer
+  - While #emph("Active"), is treated as mutable pointer
 ]
 
-#slide(title: "Two-phase borrow (Simple Example)")[
+#slide(title: "Two-phase Borrow (Implicit Mutable Borrow)")[
+
+  #side-by-side_dup[
+    ✔️
+    ```rust
+      let mut v = Vec::new();
+      v.push(v.len());
+    ```
+  ][
+    ❌
+
+    ```rust
+      let mut v = Vec::new();
+      let v_ptr = &mut v;
+      let v_len = v.len();
+      v_ptr.push(v_len);
+    ```
+  ]
+  // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=394ce5a86466a3d003fe1d841464c940
+]
+
+#slide(title: "Two-phase Borrow (Implicit Mutable Borrow)")[
   #set text(font: font, weight: wt, size: 15pt)
   #side-by-side_dup[
     Source Code:\
     #codeblock(
       ```rust
         let mut v = Vec::new();
-        // append length of vector to vector
         v.push(v.len());
       ```
     )
   ][
-    Source Code with implicit behavior:
+    Source Code with implicit behavior made explicit:
     #codeblock(
       ```rust
         let mut v = Vec::new();
         // no pointers
         let temp1 = &mut v;
-        //temp1 treated as shared pointer to v. temp1 in "Reserved" phase
+        //temp1 treated as shared pointer to v. temp1: "Reserved"
         let temp3 = &v;
         // temp3 treated as shared pointer to v.
         let temp2 = Vec::len(temp3);
         drop(temp3);
-        // temp2 becomes mutable pointer, no longer "Reserved", becomes "Active"
+        // temp1: "Active"
         Vec::push(temp1, temp2);
       ```
     )
   ]
-  // TODO MIR
 ]
 
-// #new-section-slide([Tree Borrows])
+#slide(title: "Two-phase Borrow (Implicit Reborrow)")[
+  #set text(font: font, weight: wt, size: 14pt)
+  #side-by-side_dup[
+    Source Code:\
+    #codeblock(
+      ```rust
+        let r = &mut Vec::from([0]);
+        std::mem::replace(
+          /*implicit reborrow: &mut * */ r,
+          vec![1, r.len()]
+        );
+      ```
+    )
+  ][
+    Source Code with implicit behavior made explicit:
+    #codeblock(
+      ```rust
+        let mut temp_vec = Vec::from([0]); // line 1
+        let r = &mut temp_vec; // line 1
+        // r: "Active"
+        let temp1 = &mut *r; // line 3
+        // r: "Suspended", temp1: "Reserved" because implicit borrow
+        let temp3 = &*r; // line 4
+        // temp3: shared pointer
+        let r_len : int = Vec::len(temp3); // line 4
+        let temp4 = vec![1, r_len]; // line 4
+        // r: "Suspended", temp1: "Active" because implicit borrow
+        std::mem::replace(temp1, temp4);
+      ```
+    )
+  ]
+]
 
-// #slide(title: "Tree Borrows")[
-//   Each pointer is a state machine that is either:
-//   - Reserved
-//   - Active
-//   - Disabled
-//   - Frozen
-// ]
+#new-section-slide([Building bigger projects (tmux)])
 
-//
+#slide(title: "Compilation Information")[
+  - In c2rust bear/ninja/intercept-build used to determine locations of included headers
+  - Python used to connect files
+]
+
+#slide(title: "Headers")[
+  #set text(font: font, weight: wt, size: 20pt)
+  - General structure of file mirrors C
+  - Ugly
+  ```rust
+  pub mod my_header {
+    extern "C" {
+      pub type ..;
+      pub fn ..;
+    }
+  }
+  // more headers
+
+  // code if C file
+
+  ```
+]
