@@ -17,10 +17,10 @@
 )
 
 #slide(title: "Abbreviated Pitch" )[
-  - Compile C to a subset of Rust with formalism
+  - Compile C to a subset of Rust (RustLight)
     - Memory model
-    - Borrow checking, type checking
-    - "RustLight" semantics
+    - Borrow checking
+    - Operational semantics
   - LLMs
   - Proposer's day registration
 ]
